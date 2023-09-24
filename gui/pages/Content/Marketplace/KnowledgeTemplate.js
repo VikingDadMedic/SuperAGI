@@ -25,6 +25,7 @@ export default function KnowledgeTemplate({template, env}) {
   const [indexDropdown, setIndexDropdown] = useState(false);
   const [pinconeIndices, setPineconeIndices] = useState([]);
   const [qdrantIndices, setQdrantIndices] = useState([]);
+  const [weaviateIndices, setWeaviateIndices] = useState([]);
 
   useEffect(() => {
     getValidMarketplaceIndices(template.name)
@@ -33,6 +34,7 @@ export default function KnowledgeTemplate({template, env}) {
         if (data) {
           setPineconeIndices(data.pinecone || []);
           setQdrantIndices(data.qdrant || []);
+          setWeaviateIndices(data.weaviate || [])
         }
       })
       .catch((error) => {
@@ -60,7 +62,7 @@ export default function KnowledgeTemplate({template, env}) {
 
     if (window.location.href.toLowerCase().includes('marketplace')) {
       setInstalled('Sign in to install');
-      axios.get(`https://app.superagi.com/api/knowledge/marketplace/get/details/${template.name}`)
+      axios.get(`https://app.superagi.com/api/knowledges/marketplace/get/details/${template.name}`)
         .then((response) => {
           const data = response.data || [];
           setTemplateData(data);
@@ -86,7 +88,16 @@ export default function KnowledgeTemplate({template, env}) {
     }
   }, []);
 
-  const handleInstallClick = (indexId) => {
+  const handleInstallClick = (index) => {
+    const indexId = index.id
+    if(!index.is_valid_state){
+      toast.error("Select valid index", {autoClose : 1800})
+      return
+    }
+    if (template && template.is_installed) {
+      toast.error("Template is already installed", {autoClose: 1800});
+      return;
+    }
     setInstalled("Installing");
 
     if (window.location.href.toLowerCase().includes('marketplace')) {
@@ -98,11 +109,6 @@ export default function KnowledgeTemplate({template, env}) {
       } else {
         window.location.href = '/';
       }
-      return;
-    }
-
-    if (template && template.is_installed) {
-      toast.error("Template is already installed", {autoClose: 1800});
       return;
     }
 
@@ -153,6 +159,18 @@ export default function KnowledgeTemplate({template, env}) {
     return [isValid, errorMessage];
   }
 
+  const installClicked = () => {
+    setIndexDropdown(!indexDropdown)
+    if (window.location.href.toLowerCase().includes('marketplace')) {
+      if (env === 'PROD') {
+        window.open(`https://app.superagi.com/`, '_self');
+      } else {
+        window.location.href = '/';
+      }
+      return;
+    }
+  }
+
   return (
     <>
       <div>
@@ -172,7 +190,7 @@ export default function KnowledgeTemplate({template, env}) {
                 style={{marginBottom: '1px'}}/>&nbsp;{'\u00B7'}&nbsp;{templateData?.install_number || 0}</span>
 
               {!template?.is_installed && <div className="dropdown_container_search" style={{width: '100%'}}>
-                <div className="primary_button" onClick={() => setIndexDropdown(!indexDropdown)}
+                <div className="primary_button" onClick={installClicked}
                      style={{marginTop: '15px', cursor: 'pointer', width: '100%'}}>
                   <Image width={14} height={14} src="/images/upload_icon_dark.svg" alt="upload-icon"/>&nbsp;
                   <span>{installed}</span>{installed === 'Installing' && <span className="loader ml_10"></span>}
@@ -187,7 +205,7 @@ export default function KnowledgeTemplate({template, env}) {
                         <div className={styles3.knowledge_db} style={{maxWidth: '100%'}}>
                           <div className={styles3.knowledge_db_name}>Pinecone</div>
                           {pinconeIndices.map((index) => (<div key={index.id} className="custom_select_option"
-                                                               onClick={() => handleInstallClick(index.id)} style={{
+                                                               onClick={() => handleInstallClick(index)} style={{
                             padding: '12px 14px',
                             maxWidth: '100%',
                             display: 'flex',
@@ -209,7 +227,29 @@ export default function KnowledgeTemplate({template, env}) {
                         <div className={styles3.knowledge_db} style={{maxWidth: '100%'}}>
                           <div className={styles3.knowledge_db_name}>Qdrant</div>
                           {qdrantIndices.map((index) => (<div key={index.id} className="custom_select_option"
-                                                              onClick={() => handleInstallClick(index.id)} style={{
+                                                              onClick={() => handleInstallClick(index)} style={{
+                            padding: '12px 14px',
+                            maxWidth: '100%',
+                            display: 'flex',
+                            justifyContent: 'space-between'
+                          }}>
+                            <div style={!checkIndexValidity(index.is_valid_state, index.is_valid_dimension)[0] ? {
+                              color: '#888888',
+                              textDecoration: 'line-through',
+                              pointerEvents : 'none',
+                            } : {}}>{index.name}</div>
+                            {!checkIndexValidity(index.is_valid_state, index.is_valid_dimension)[0] &&
+                              <div>
+                                <Image width={15} height={15} src="/images/info.svg" alt="info-icon"
+                                       title={checkIndexValidity(index.is_valid_state, index.is_valid_dimension)[1]}/>
+                              </div>}
+                          </div>))}
+                        </div>}
+                      {weaviateIndices && weaviateIndices.length > 0 &&
+                        <div className={styles3.knowledge_db} style={{maxWidth: '100%'}}>
+                          <div className={styles3.knowledge_db_name}>Weaviate</div>
+                          {weaviateIndices.map((index) => (<div key={index.id} className="custom_select_option"
+                                                              onClick={() => handleInstallClick(index)} style={{
                             padding: '12px 14px',
                             maxWidth: '100%',
                             display: 'flex',
@@ -306,7 +346,7 @@ export default function KnowledgeTemplate({template, env}) {
             <div style={{overflowY: 'scroll', height: '84vh'}}>
               <div className={styles2.left_container}
                    style={{marginBottom: '5px', color: 'white', padding: '16px'}}>
-                <span className={styles2.description_text}>Overview</span><br/>
+                <span className="text_20_bold">Overview</span><br/>
                 {/*{templateData?.overview.map((item, index) => (<div key={index} style={{marginTop: '0'}}>*/}
                 {/*  <div className={styles2.description_text}>{index + 1}. {item || ''}</div>*/}
                 {/*  {index !== item.length - 1}*/}

@@ -12,7 +12,7 @@ import {loadingTextEffect} from "@/utils/utils";
 
 export default function AgentTemplate({template, env}) {
   const [tools, setTools] = useState([])
-  const [agentType, setAgentType] = useState('')
+  const [agentWorkflow, setAgentWorkflow] = useState('')
   const [templateModel, setTemplateModel] = useState('')
   const [rightPanel, setRightPanel] = useState('overview')
   const [goals, setGoals] = useState([])
@@ -49,7 +49,7 @@ export default function AgentTemplate({template, env}) {
   }, []);
 
   function setValues(data) {
-    setAgentType(data.configs.agent_type.value)
+    setAgentWorkflow(data.agent_workflow_name)
     setTemplateModel(data.configs.model.value)
     setGoals(data.configs.goal.value)
     setConstraints(data.configs.constraints.value)
@@ -104,16 +104,32 @@ export default function AgentTemplate({template, env}) {
               <span style={{fontSize: '12px', marginTop: '15px',}} className={styles.tool_publisher}>By SuperAGI <Image
                 width={14} height={14} src="/images/is_verified.svg" alt="is_verified"/>&nbsp;{'\u00B7'}&nbsp;<Image
                 width={14} height={14} src="/images/upload_icon.svg" alt="upload-icon"/></span>
-              <button className="primary_button" style={{
-                marginTop: '15px',
-                width: '100%',
-                background: isInstalled || (template && template.is_installed) ? 'rgba(255, 255, 255, 0.14)' : '#FFF',
-                color: isInstalled || (template && template.is_installed) ? '#FFFFFF' : '#000'
-              }} onClick={() => handleInstallClick()}>
-                {(isInstalled || (template && template.is_installed)) ?
-                  <Image width={14} height={14} src="/images/tick.svg" alt="tick-icon"/> :
-                  <Image width={14} height={14} src="/images/upload_icon_dark.svg"
-                         alt="upload-icon"/>}&nbsp;{installed}</button>
+              {isInstalled || (template && template.is_installed) ? (
+                  <button
+                      className="primary_button"
+                      style={{
+                        marginTop: '15px',
+                        width: '100%',
+                        background: 'rgba(255, 255, 255, 0.14)',
+                        color: '#FFFFFF'
+                      }}
+                  >
+                    <Image width={14} height={14} src="/images/tick.svg" alt="tick-icon"/>&nbsp; Installed
+                  </button>
+              ) : (
+                  <button
+                      className="primary_button"
+                      style={{
+                        marginTop: '15px',
+                        width: '100%',
+                        background: '#FFF',
+                        color: '#000'
+                      }}
+                      onClick={() => handleInstallClick()}
+                  >
+                    <Image width={14} height={14} src="/images/upload_icon_dark.svg" alt="upload-icon"/>&nbsp; Install
+                  </button>
+              )}
 
               <hr className={styles2.horizontal_line}/>
 
@@ -129,9 +145,9 @@ export default function AgentTemplate({template, env}) {
                   </div>))}
               </div>
               <br/>
-              <span style={{fontSize: '12px'}} className={styles.tool_publisher}>Agent Type</span>
+              <span style={{fontSize: '12px'}} className={styles.tool_publisher}>Agent Workflow</span>
               <div className="tool_container" style={{marginTop: '10px', width: 'fit-content'}}>
-                <div className={styles1.tool_text}>{agentType}</div>
+                <div className={styles1.tool_text}>{agentWorkflow}</div>
               </div>
               <br/>
               <span style={{fontSize: '12px'}} className={styles.tool_publisher}>Model(s)</span>

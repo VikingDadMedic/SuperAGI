@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import Image from 'next/image';
 import {ToastContainer, toast} from 'react-toastify';
 import {
@@ -9,14 +9,19 @@ import {
 } from "@/pages/api/DashboardService";
 import styles from './Tool.module.css';
 import {setLocalStorageValue, setLocalStorageArray, returnToolkitIcon, convertToTitleCase} from "@/utils/utils";
+import Metrics from "@/pages/Content/Toolkits/Metrics";
 
 export default function ToolkitWorkspace({env, toolkitDetails, internalId}) {
-  const [activeTab, setActiveTab] = useState('configuration')
+  const [activeTab, setActiveTab] = useState('metrics')
   const [showDescription, setShowDescription] = useState(false)
   const [apiConfigs, setApiConfigs] = useState([]);
   const [toolsIncluded, setToolsIncluded] = useState([]);
   const [loading, setLoading] = useState(true);
   const authenticateToolkits = ['Google Calendar Toolkit', 'Twitter Toolkit'];
+  const [toolDropdown, setToolDropdown] = useState(false);
+  const toolRef = useRef(null);
+  const [currTool, setCurrTool] = useState(false);
+
 
   let handleKeyChange = (event, index) => {
     const updatedData = [...apiConfigs];
@@ -33,7 +38,7 @@ export default function ToolkitWorkspace({env, toolkitDetails, internalId}) {
     }
     const client_id = client_data.client_id
     const scope = 'https://www.googleapis.com/auth/calendar';
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${client_id}&redirect_uri=${redirect_uri}&access_type=offline&response_type=code&scope=${scope}`;
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${client_id}&redirect_uri=${redirect_uri}&access_type=offline&approval_prompt=force&response_type=code&scope=${scope}&state=${toolkitDetails.id}`;
   }
 
   function getTwitterToken(oauth_data) {
@@ -44,6 +49,7 @@ export default function ToolkitWorkspace({env, toolkitDetails, internalId}) {
     if (toolkitDetails !== null) {
       if (toolkitDetails.tools) {
         setToolsIncluded(toolkitDetails.tools);
+        setCurrTool(toolkitDetails.tools[0].name)
       }
 
       getToolConfig(toolkitDetails.name)
@@ -52,7 +58,7 @@ export default function ToolkitWorkspace({env, toolkitDetails, internalId}) {
           const apiConfigs = response.data || [];
           setApiConfigs(localStoredConfigs ? JSON.parse(localStoredConfigs) : apiConfigs);
         })
-        .catch((errPor) => {
+        .catch((error) => {
           console.log('Error fetching API data:', error);
         })
         .finally(() => {
@@ -62,6 +68,10 @@ export default function ToolkitWorkspace({env, toolkitDetails, internalId}) {
   }, [toolkitDetails]);
 
   const handleUpdateChanges = async () => {
+    if(apiConfigs.some(config => config?.is_required && !config.value)){
+      toast.error("Please input necessary details", 1800)
+      return
+    }
     const updatedConfigData = apiConfigs.map((config) => ({
       key: config.key,
       value: config.value,
@@ -78,6 +88,7 @@ export default function ToolkitWorkspace({env, toolkitDetails, internalId}) {
   };
 
   const handleAuthenticateClick = async (toolkitName) => {
+    handleUpdateChanges();
     if (toolkitName === "Google Calendar Toolkit") {
       authenticateGoogleCred(toolkitDetails.id)
         .then((response) => {
@@ -85,6 +96,7 @@ export default function ToolkitWorkspace({env, toolkitDetails, internalId}) {
           getGoogleToken(response.data);
         })
         .catch((error) => {
+          toast.error('Unable to authenticate tool', {autoClose: 1800});
           console.error('Error fetching data:', error);
         });
     } else if (toolkitName === "Twitter Toolkit") {
@@ -94,6 +106,7 @@ export default function ToolkitWorkspace({env, toolkitDetails, internalId}) {
           getTwitterToken(response.data);
         })
         .catch((error) => {
+          toast.error('Unable to authenticate tool', {autoClose: 1800});
           console.error('Error fetching data: ', error);
         });
     }
@@ -108,95 +121,111 @@ export default function ToolkitWorkspace({env, toolkitDetails, internalId}) {
     }
   }, [internalId]);
 
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (toolRef.current && !toolRef.current.contains(event.target)) {
+        setToolDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
   return (<>
     <div className="row">
-      <div className="col-3"></div>
-      <div className="col-6" style={{overflowY: 'scroll', height: 'calc(100vh - 92px)', padding: '25px 20px'}}>
+      <div className="col-12 col-6-scrollable">
         <div className={styles.tools_container}>
-          <div style={{display: 'flex', justifyContent: 'flex-start', marginBottom: '20px', width: '95%'}}>
-            <div>
-              <Image src={returnToolkitIcon(toolkitDetails?.name)} alt="toolkit-icon" width={45} height={45}
-                     style={{borderRadius: '25px', background: 'black'}}/>
-            </div>
-            <div style={{display: 'flex', alignItems: 'center'}}>
-              <div style={{marginLeft: '15px', textAlign: 'left', paddingRight: '10px'}}>
-                <div style={{fontSize: '17px', marginTop: '-3px'}}>{toolkitDetails.name}</div>
-                <div className={styles.toolkit_description}
-                     style={!showDescription ? {overflow: 'hidden'} : {display: 'block'}}>
-                  {`${showDescription ? toolkitDetails.description : toolkitDetails.description.slice(0, 70)}`}
-                  {toolkitDetails.description.length > 70 &&
+          <div className="horizontal_container align_start mb_20">
+            <Image src={returnToolkitIcon(toolkitDetails?.name)} alt="toolkit-icon" width={45} height={45} className="tool_icon" />
+            <div className="vertical_containers ml_15 text_align_left mr_10">
+              <div className="text_17">{toolkitDetails.name}</div>
+              <div className={styles.toolkit_description} style={!showDescription ? {overflow: 'hidden'} : {display: 'block'}}>
+                {`${showDescription ? toolkitDetails.description : toolkitDetails.description.slice(0, 70)}`}
+                {toolkitDetails.description.length > 70 &&
                     <span className={styles.show_more_button} onClick={() => setShowDescription(!showDescription)}>
                       {showDescription ? '...less' : '...more'}
                   </span>}
-                </div>
               </div>
             </div>
           </div>
-          <div style={{display: 'flex', alignItems: 'center', marginBottom: '20px'}}>
-            <div className={styles.tool1_box}
-                 onClick={() => setLocalStorageValue('toolkit_tab_' + String(internalId), 'configuration', setActiveTab)}
-                 style={activeTab === 'configuration' ? {background: '#454254'} : {background: 'transparent'}}>
-              <div className={styles.tab_text}>Configuration</div>
+          <div className="horizontal_container mb_10 border_bottom_grey pd_bottom_5">
+            <div className="w_50 display_flex_container">
+            <div className={activeTab === 'metrics' ? 'tab_button_small_selected' : 'tab_button_small'}
+                 onClick={() => setLocalStorageValue('toolkit_tab_' + String(internalId), 'metrics', setActiveTab)}>
+              <div className="text_12 color_white padding_8">Metrics</div>
             </div>
-            <div className={styles.tool1_box}
-                 onClick={() => setLocalStorageValue('toolkit_tab_' + String(internalId), 'tools_included', setActiveTab)}
-                 style={activeTab === 'tools_included' ? {background: '#454254'} : {background: 'transparent'}}>
-              <div className={styles.tab_text}>Tools Included</div>
+            <div className={activeTab === 'configuration' ? 'tab_button_small_selected' : 'tab_button_small'}
+                 onClick={() => setLocalStorageValue('toolkit_tab_' + String(internalId), 'configuration', setActiveTab)}>
+              <div className="text_12 color_white padding_8">Configuration</div>
             </div>
+            <div className={activeTab === 'tools_included' ? 'tab_button_small_selected' : 'tab_button_small'}
+                 onClick={() => setLocalStorageValue('toolkit_tab_' + String(internalId), 'tools_included', setActiveTab)}>
+              <div className="text_12 color_white padding_8">Tools Included</div>
+            </div>
+            </div>
+            {!loading && activeTab === 'metrics' && <div className="display_flex_container w_50 justify_end">
+              <div className="dropdown_container_search ">
+                <div className="custom_select_container w_180p" onClick={() => setToolDropdown(!toolDropdown)}>
+                  {currTool}<Image width={20} height={21}
+                                        src={!toolDropdown ? '/images/dropdown_down.svg' : '/images/dropdown_up.svg'}
+                                        alt="expand-icon"/>
+                </div>
+                <div>
+                  {toolDropdown && <div className="custom_select_options text_align_left w_100" ref={toolRef}>
+                    {toolsIncluded.map((tool, index) => (
+                      <div key={index} className="custom_select_option mxw_100 padding_12_14" onClick={() => {setCurrTool(tool.name); setToolDropdown(false)}}>
+                        {tool.name}
+                      </div>))}
+                  </div>}
+                </div>
+              </div>
+            </div>}
           </div>
+          <div className="row">
+            <div className="col-3"></div>
+            <div className="col-6">
           {!loading && activeTab === 'configuration' && <div>
             {apiConfigs.length > 0 ? (apiConfigs.map((config, index) => (
               <div key={index}>
-                <div style={{
-                  color: '#888888',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start',
-                  marginBottom: '20px'
-                }}>
-                  <label style={{marginBottom: '6px'}}>{convertToTitleCase(config.key)}</label>
+                <div className="vertical_containers w_100 color_gray mb_20 text_align_left">
+                  <label className="mb_6">{convertToTitleCase(config.key)}</label>
                   <div className={styles.search_box}>
-                    <input type="text" style={{color: 'white', width: '100%'}} value={config.value || ''}
-                           onChange={(event) => handleKeyChange(event, index)}/>
+                    {config?.key_type !== "file" && <input className="color_white" type={config?.is_secret ? 'password' : 'text'} value={config.value || ''} onChange={(event) => handleKeyChange(event, index)}/>}
+                    {config?.key_type === "file" && <textarea className="color_white" type={config?.is_secret ? 'password' : 'text'} value={config.value || ''} onChange={(event) => handleKeyChange(event, index)}/>}
                   </div>
                 </div>
               </div>
-            ))) : (<div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginTop: '40px',
-              width: '100%'
-            }}>
+            ))) : (<div className="vertical_container mt_40 w_100">
               <Image width={150} height={60} src="/images/no_permissions.svg" alt="no-permissions"/>
-              <span className={styles.feed_title} style={{marginTop: '8px'}}>No Keys found!</span>
+              <span className="feed_title mt_8">No Keys found!</span>
             </div>)}
 
             {apiConfigs.length > 0 && (
-              <div style={{marginLeft: 'auto', display: 'flex', justifyContent: 'space-between'}}>
-                <div>{authenticateToolkits.includes(toolkitDetails.name) &&
-                  <button style={{width: 'fit-content'}} className="primary_button"
-                          onClick={() => handleAuthenticateClick(toolkitDetails.name)}>Authenticate Tool</button>
-                }</div>
-                <div style={{display: 'flex', justifyContent: 'flex-end'}}>
+              <div className="horizontal_space_between">
+                {authenticateToolkits.includes(toolkitDetails.name) &&
+                  <button className="primary_button w_fit_content" onClick={() => handleAuthenticateClick(toolkitDetails.name)}>Authenticate Tool</button>}
                   <button className="primary_button" onClick={handleUpdateChanges}>Update Changes</button>
-                </div>
               </div>)}
           </div>}
           {activeTab === 'tools_included' && <div>
             {toolsIncluded.map((tool, index) => (
               <div key={index} className={styles.tools_included}>
                 <div>
-                  <div style={{color: 'white'}}>{tool.name}</div>
-                  <div style={{color: '#888888', marginTop: '5px'}}>{tool.description}</div>
+                  <div className="color_white">{tool.name}</div>
+                  <div className="color_gray mt_5">{tool.description}</div>
                 </div>
               </div>
             ))}
           </div>}
+            </div>
+          <div className="col-3"></div>
+          </div>
+          {activeTab === 'metrics' && <div>
+            <Metrics toolName={currTool} />
+          </div>}
         </div>
       </div>
-      <div className="col-3"></div>
     </div>
     <ToastContainer/>
   </>);
